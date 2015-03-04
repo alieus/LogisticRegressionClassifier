@@ -16,7 +16,7 @@ public class LogisticRegressionClassifier {
      */
     @FunctionalInterface
     public static interface FailLogger {
-        void log(double[] data, boolean cat, int number);
+        void log(double[] data, boolean cat, long number);
     }
     
     // default heta and lambda
@@ -71,11 +71,10 @@ public class LogisticRegressionClassifier {
         
         return mult(w, x) > 0;
     }
-
-    public void readTrainFile(String path, boolean cat) throws IOException {
-        java.nio.file.Files.lines(Paths.get(path)).forEach(line -> {
-            String[] elements = line.split(" ");
-            train(Stream.of(elements).mapToDouble(Double::parseDouble).toArray(), cat);
+    
+    public void applyTrainData(TrainData trainData) {
+        trainData.getTrainData().stream().forEach((trainDatum) -> {
+            train(trainDatum.vector, trainDatum.cat);
         });
     }
     
@@ -94,9 +93,8 @@ public class LogisticRegressionClassifier {
     // param logger: handles failures
     public TestResults readTestFile(String path, boolean cat, FailLogger logger) throws IOException {
         Objects.requireNonNull(logger, "Logger can not be null");
-        class I {int i; I(int i) {this.i = i;}}
-        I read = new I(0);
-        I pass = new I(0);
+        LongHolder read = new LongHolder(0);
+        LongHolder pass = new LongHolder(0);
         
         java.nio.file.Files.lines(Paths.get(path)).forEach(line -> {
             String[] elements = line.split(" ");

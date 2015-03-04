@@ -10,6 +10,9 @@ import java.io.IOException;
 import java.nio.file.Paths;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import java.util.stream.DoubleStream;
 import javax.imageio.ImageIO;
 
@@ -17,6 +20,19 @@ public class ImageApplication {
     static final int IMAGE_WIDTH = 28;
     static final int IMAGE_HEIGHT = 28;
     static final String RESULTS_PATH = "heta_lamdba_results.txt";
+    
+    static TrainData trainData;
+    static {
+        try {
+            trainData = new TrainData();
+            trainData.readFile("train1.txt", true);
+            trainData.readFile("train7.txt", false);
+            trainData.shufleData();
+        } catch (IOException ex) {
+            Logger.getLogger(ImageApplication.class.getName()).log(Level.SEVERE, null, ex);
+            System.exit(-1);
+        }
+    }
     
     // Holds the results of the calculation for the best Heta and Lamdba
     static class HetaLamdbaResults {
@@ -88,24 +104,26 @@ public class ImageApplication {
         // logger will ignore failled images
         LogisticRegressionClassifier.FailLogger logger = (data, cat, number) -> {};
         
-        double[] hetas = {1e-8, 1e-9, 1e-10, 1e-11, 1e-12, 1e-13, 1e-14, 1e-15, 1e-16, 1e-17};
-        double[] lambdas = {1e-8, 1e-9, 1e-10, 1e-11, 1e-12, 1e-13, 1e-14, 1e-15, 1e-16, 1e-17};
+        double[] hetas = {1e-4, 1e-5, 1e-6, 1e-7, 1e-8, 1e-9, 1e-10, 1e-11};
+        double[] lambdas = {1e-6, 1e-7, 1e-8, 1e-9, 1e-10, 1e-11, 1e-12, 1e-13, 1e-14};
         HetaLamdbaResults results = new HetaLamdbaResults();
-        
+        int totalCombinations = hetas.length * lambdas.length;
+        AtomicInteger currentCombination = new AtomicInteger();
         DoubleStream.of(lambdas).parallel().forEach(lambda -> {
             DoubleStream.of(hetas).parallel().forEach(heta -> {
                 try {
                     LogisticRegressionClassifier classifier = 
                             new LogisticRegressionClassifier(IMAGE_WIDTH*IMAGE_HEIGHT, heta, lambda);
-                    classifier.readTrainFile("train1.txt", true);
-                    classifier.readTrainFile("train7.txt", false);
-
+                    for (int i = 0; i < 5; i++) {
+                        classifier.applyTrainData(trainData);
+                    }
                     LogisticRegressionClassifier.TestResults trueRatio
                             = classifier.readTestFile("test1.txt", true, logger);
                     LogisticRegressionClassifier.TestResults falseRatio
                             = classifier.readTestFile("test7.txt", false, logger);
                     results.append(trueRatio, falseRatio, heta, lambda);
                 } catch (IOException e) {e.printStackTrace();};
+                System.out.println((100*currentCombination.addAndGet(1) / (float) totalCombinations)+"%");
             });
         });
         
@@ -131,7 +149,7 @@ public class ImageApplication {
             lambda = results.best.lambda;
         } else {
             // precalcutated heta and lambda
-            heta = 1.0E-11;
+            heta = 1.0E-6;
             lambda = 1.0E-10;
         }
         
@@ -144,8 +162,10 @@ public class ImageApplication {
         System.out.println("\nTrainning with heta="+heta+" and lambda="+lambda);
         LogisticRegressionClassifier classifier =  new LogisticRegressionClassifier(
                 IMAGE_WIDTH*IMAGE_HEIGHT, heta, lambda);
-        classifier.readTrainFile("train1.txt", true);
-        classifier.readTrainFile("train7.txt", false);
+        
+        for (int i = 0; i < 8; i++) {
+            classifier.applyTrainData(trainData);
+        }
         
         LogisticRegressionClassifier.TestResults trueRatio
                 = classifier.readTestFile("test1.txt", true, logger);
